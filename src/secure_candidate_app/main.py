@@ -1,15 +1,60 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+import logging
+import time
+import uuid
+
+from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from secure_candidate_app.database import get_database_session
-from secure_candidate_app.models import User
-from secure_candidate_app.schemas import UserRegister, UserResponse, TokenResponse
+from secure_candidate_app.models import User, Vacancy, Applicant
+from secure_candidate_app.schemas import UserRegister, UserResponse, TokenResponse, VacancyCreate, VacancyResponse, ApplicantCreate, ApplicantResponse
 from secure_candidate_app.security import hash_password, create_access_token, verify_password, get_current_user
+from secure_candidate_app.logging_config import configure_logging
+from secure_candidate_app.error_handlers import internal_error_handler
 
 
 app = FastAPI()
+
+app.add_exception_handler(
+    Exception,
+    internal_error_handler,
+)
+
+
+configure_logging()
+
+logger = logging.getLogger("secure_candidate_app")
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+    start_time = time.perf_counter()
+
+    response = await call_next(request)
+
+    latency_ms = round(
+        (time.perf_counter() - start_time) * 1000,
+        2,
+    )
+
+    logger.info(
+        "request completed",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": response.status_code,
+            "latency_ms": latency_ms,
+        },
+    )
+
+    response.headers["X-Request-ID"] = request_id
+
+    return response
 
 
 @app.post(
@@ -88,3 +133,59 @@ def get_authenticated_user(
     current_user: User = Depends(get_current_user),
 ):
     return current_user
+
+@app.post(
+    "/vacancies",
+    response_model=VacancyResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_vacancy(
+    vacancy_data: VacancyCreate,
+    db_session: Session = Depends(get_database_session),
+    current_user: User = Depends(get_current_user),
+):
+    vacancy_record = Vacancy(
+        title=vacancy_data.title,
+        description=vacancy_data.description,
+    )
+
+    db_session.add(vacancy_record)
+    db_session.commit()
+    db_session.refresh(vacancy_record)
+
+    return vacancy_record
+
+
+@app.post(
+    "/applicants",
+    response_model=ApplicantResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_applicant(
+    applicant_data: ApplicantCreate,
+    db_session: Session = Depends(get_database_session),
+    current_user: User = Depends(get_current_user),
+):
+    vacancy_record = db_session.get(
+        Vacancy,
+        applicant_data.vacancy_id,
+    )
+
+    if not vacancy_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vacancy not found",
+        )
+
+    applicant_record = Applicant(
+        name=applicant_data.name,
+        email=applicant_data.email,
+        vacancy_id=applicant_data.vacancy_id,
+    )
+
+    db_session.add(applicant_record)
+    db_session.commit()
+    db_session.refresh(applicant_record)
+
+    return applicant_record
+
