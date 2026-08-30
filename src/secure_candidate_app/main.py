@@ -13,7 +13,7 @@ from secure_candidate_app.schemas import UserRegister, UserResponse, TokenRespon
 from secure_candidate_app.security import hash_password, create_access_token, verify_password, get_current_user
 from secure_candidate_app.logging_config import configure_logging
 from secure_candidate_app.error_handlers import internal_error_handler
-
+from secure_candidate_app.rate_limit import is_rate_limited, record_failed_login, reset_login_attempts
 
 app = FastAPI()
 
@@ -92,6 +92,13 @@ def login_user(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db_session: Session = Depends(get_database_session),
 ):
+    if is_rate_limited(form_data.username):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again later.",
+            headers={"Retry-After": "60"},
+        )
+
     user_record = db_session.scalar(
         select(User).where(
             User.email == form_data.username
@@ -99,6 +106,8 @@ def login_user(
     )
 
     if not user_record:
+        record_failed_login(form_data.username)
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -109,11 +118,15 @@ def login_user(
         form_data.password,
         user_record.password_hash,
     ):
+        record_failed_login(form_data.username)
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    reset_login_attempts(form_data.username)
 
     access_token = create_access_token(
         str(user_record.email)
@@ -123,7 +136,6 @@ def login_user(
         access_token=access_token,
         token_type="bearer",
     )
-
 
 @app.get(
     "/auth/me",
