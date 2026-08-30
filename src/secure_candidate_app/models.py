@@ -9,6 +9,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(320),unique=True,nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255),nullable=False)
+    role: Mapped[str] = mapped_column((String(50)),nullable=False,default="user")
 
 
 class Vacancy(Base):

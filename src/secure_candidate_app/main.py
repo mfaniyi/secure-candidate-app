@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from secure_candidate_app.database import get_database_session
 from secure_candidate_app.models import User, Vacancy, Applicant
 from secure_candidate_app.schemas import UserRegister, UserResponse, TokenResponse, VacancyCreate, VacancyResponse, ApplicantCreate, ApplicantResponse
-from secure_candidate_app.security import hash_password, create_access_token, verify_password, get_current_user
+from secure_candidate_app.security import hash_password, create_access_token, verify_password, get_current_user, require_admin
 from secure_candidate_app.logging_config import configure_logging
 from secure_candidate_app.error_handlers import internal_error_handler
 from secure_candidate_app.rate_limit import is_rate_limited, record_failed_login, reset_login_attempts
@@ -77,6 +77,7 @@ def register_user(
     user_record = User(
         email=user_data.email,
         password_hash=hash_password(user_data.password),
+        role="user"
     )
     db_session.add(user_record)
     db_session.commit()
@@ -154,7 +155,7 @@ def get_authenticated_user(
 def create_vacancy(
     vacancy_data: VacancyCreate,
     db_session: Session = Depends(get_database_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     vacancy_record = Vacancy(
         title=vacancy_data.title,
@@ -201,3 +202,12 @@ def create_applicant(
 
     return applicant_record
 
+
+@app.get("/admin/test")
+def admin_test(
+    current_user: User = Depends(require_admin),
+):
+    return {
+        "message": "Welcome, admin",
+        "email": current_user.email,
+    }
