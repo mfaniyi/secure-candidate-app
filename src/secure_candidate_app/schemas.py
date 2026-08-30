@@ -41,3 +41,8 @@ class ApplicantResponse(BaseModel):
     name: str
     email: EmailStr
     vacancy_id: int
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str

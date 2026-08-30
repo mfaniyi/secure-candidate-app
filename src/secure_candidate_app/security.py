@@ -7,6 +7,10 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from secure_candidate_app.database import get_database_session
+from secure_candidate_app.models import User
 
 load_dotenv()
 
@@ -92,3 +96,23 @@ def get_current_user_email(
         return user_email
     except InvalidTokenError:
         raise credentials_exception
+
+
+def get_current_user(
+    user_email: str = Depends(get_current_user_email),
+    db_session: Session = Depends(get_database_session),
+) -> User:
+    """Return the authenticated user from the database."""
+
+    current_user = db_session.scalar(
+        select(User).where(User.email == user_email)
+    )
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={
+                "WWW-Authenticate": "Bearer",
+            },
+        )
+    return current_user
