@@ -193,6 +193,7 @@ def create_applicant(
     applicant_record = Applicant(
         name=applicant_data.name,
         email=applicant_data.email,
+        years_of_experience=applicant_data.years_of_experience,
         vacancy_id=applicant_data.vacancy_id,
     )
 

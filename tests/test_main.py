@@ -221,6 +221,7 @@ def test_create_applicant_for_vacancy():
         json={
             "name": "Alice Johnson",
             "email": "alice.persistence@example.com",
+            "years_of_experience": 3,
             "vacancy_id": vacancy_id,
         },
         headers={
@@ -261,6 +262,7 @@ def test_create_applicant_with_missing_vacancy():
         json={
             "name": "Bob Smith",
             "email": "bob.foreignkey@example.com",
+            "years_of_experience": 2,
             "vacancy_id": 999999,
         },
         headers={

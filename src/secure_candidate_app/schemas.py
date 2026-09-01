@@ -32,6 +32,7 @@ class VacancyResponse(BaseModel):
 class ApplicantCreate(BaseModel):
     name: str
     email: EmailStr
+    years_of_experience: int
     vacancy_id: int
 
 
@@ -40,6 +41,7 @@ class ApplicantResponse(BaseModel):
     id: int
     name: str
     email: EmailStr
+    years_of_experience: int
     vacancy_id: int
 
 

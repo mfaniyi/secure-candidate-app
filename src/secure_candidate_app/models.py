@@ -25,5 +25,6 @@ class Applicant(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200),nullable=False)
     email: Mapped[str] = mapped_column(String(320),nullable=False)
+    years_of_experience: Mapped[int] = mapped_column(nullable=False)
     vacancy_id: Mapped[int] = mapped_column(ForeignKey("vacancies.id"),nullable=False)
     vacancyrec: Mapped["Vacancy"] = relationship(back_populates="applicantsapp")
