@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-
+from unittest.mock import MagicMock
 from secure_candidate_app.main import app
 from sqlalchemy import text
 from secure_candidate_app.database import engine
@@ -21,6 +21,18 @@ def test_register_user():
     assert response.json()["email"] == "testuser@example.com"
     assert "password" not in response.json()
     assert "password_hash" not in response.json()
+
+
+def test_register_with_invalid_email():
+    response = client.post(
+        "/auth/register",
+        json={
+            "email": "not-a-valid-email",
+            "password": "MyPassword123",
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_login_user():
@@ -441,3 +453,42 @@ def test_protected_endpoint_requires_authentication():
 
     assert response.status_code == 401
 
+
+def test_database_failure_returns_safe_error():
+    test_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+
+    failing_session = MagicMock()
+    failing_session.scalar.side_effect = Exception(
+        "Simulated database failure"
+    )
+
+    def override_database_session():
+        yield failing_session
+
+    from secure_candidate_app.database import (
+        get_database_session,
+    )
+
+    app.dependency_overrides[
+        get_database_session
+    ] = override_database_session
+
+    try:
+        response = test_client.post(
+            "/auth/register",
+            json={
+                "email": "databasefailure@example.com",
+                "password": "MyPassword123",
+            },
+        )
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == (
+            "Internal server error"
+        )
+
+    finally:
+        app.dependency_overrides.clear()
