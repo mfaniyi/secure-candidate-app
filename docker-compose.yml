@@ -1,20 +1,65 @@
 services:
+
   postgres:
     image: postgres:18
+
     container_name: secure_candidate_postgres
+
     environment:
       POSTGRES_DB: secure_candidate_db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
     ports:
       - "5433:5432"
+
     volumes:
       - postgres_data:/var/lib/postgresql
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d secure_candidate_db"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: secure_candidate_migrate
+
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD}@postgres:5432/secure_candidate_db
+
+    command:
+      [
+        "alembic",
+        "upgrade",
+        "head"
+      ]
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: secure_candidate_api
+
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD}@postgres:5432/secure_candidate_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   postgres_data:
